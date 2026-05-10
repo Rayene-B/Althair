@@ -37,6 +37,19 @@ The app runs at `http://127.0.0.1:5173`.
 
 User accounts and app data are stored locally in `server/data/`. That folder is ignored by Git so private local data is not uploaded.
 
+## Cloud Sync With Supabase
+
+Althair uses Supabase when these Vercel environment variables are set:
+
+```text
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Run the SQL in `supabase/schema.sql` once in the Supabase SQL editor. It creates one row of JSON planner data per authenticated user and enables Row Level Security so users can only read and update their own data.
+
+In Supabase Auth settings, either disable email confirmations for instant sign-up during testing, or leave confirmations on and have users confirm their email before logging in.
+
 ## Gemma/Ollama on Vercel
 
 The deployed Vercel app cannot call `localhost` on your computer. To use your local Gemma model from the deployed site, expose Ollama through a secure tunnel and add this Vercel environment variable:

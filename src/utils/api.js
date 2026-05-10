@@ -1,3 +1,5 @@
+import { isSupabaseConfigured, supabase } from './supabase';
+
 const TOKEN_KEY = 'althair-auth-token';
 const LEGACY_TOKEN_KEY = 'lifeos-auth-token';
 const ACCOUNTS_KEY = 'althair-saved-accounts';
@@ -13,6 +15,8 @@ const defaultCategories = {
   Finance: '#fbbf24',
   Social: '#34d399',
 };
+
+const SUPABASE_TABLE = 'althair_user_data';
 
 export function getAuthToken() {
   const token = localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
@@ -75,6 +79,82 @@ function createLocalSeedData() {
     tasks: [],
     goals: [],
   };
+}
+
+function normaliseAppData(data = {}) {
+  return {
+    events: Array.isArray(data.events) ? data.events : [],
+    tasks: Array.isArray(data.tasks) ? data.tasks : [],
+    goals: Array.isArray(data.goals) ? data.goals : [],
+    categories: data.categories && typeof data.categories === 'object' ? data.categories : defaultCategories,
+  };
+}
+
+function publicSupabaseUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    createdAt: user.created_at,
+    cloud: true,
+  };
+}
+
+async function getSupabaseUser() {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return null;
+  return data.user;
+}
+
+async function loadSupabaseUserData() {
+  const user = await getSupabaseUser();
+  if (!user) throw new Error('Not signed in.');
+
+  const { data, error } = await supabase
+    .from(SUPABASE_TABLE)
+    .select('data')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Supabase data load failed. Make sure the ${SUPABASE_TABLE} table exists and RLS policies are installed.`);
+  }
+
+  if (data?.data) return normaliseAppData(data.data);
+
+  const seed = createLocalSeedData();
+  const { error: insertError } = await supabase
+    .from(SUPABASE_TABLE)
+    .insert({ user_id: user.id, data: seed });
+
+  if (insertError) {
+    throw new Error(`Supabase data setup failed. Make sure the ${SUPABASE_TABLE} table exists and RLS policies are installed.`);
+  }
+
+  return seed;
+}
+
+async function saveSupabaseUserData(data) {
+  const user = await getSupabaseUser();
+  if (!user) throw new Error('Not signed in.');
+
+  const nextData = normaliseAppData(data);
+  const { error } = await supabase
+    .from(SUPABASE_TABLE)
+    .upsert(
+      {
+        user_id: user.id,
+        data: nextData,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    );
+
+  if (error) {
+    throw new Error(`Supabase data save failed. Make sure the ${SUPABASE_TABLE} table exists and RLS policies are installed.`);
+  }
+
+  return nextData;
 }
 
 async function hashLocalPassword(password) {
@@ -245,6 +325,37 @@ export function switchAuthToken(token) {
 }
 
 export async function signup(email, password, confirmPassword) {
+  if (isSupabaseConfigured) {
+    const normalisedEmail = String(email || '').trim().toLowerCase();
+    if (!normalisedEmail || !password || password.length < 8) {
+      throw new Error('Use a valid email and a password with at least 8 characters.');
+    }
+    if (password !== confirmPassword) {
+      throw new Error('Passwords do not match.');
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: normalisedEmail,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
+
+    if (error) throw new Error(error.message);
+    if (!data.session || !data.user) {
+      throw new Error('Check your email to confirm the account, then log in.');
+    }
+
+    const auth = {
+      token: data.session.access_token,
+      user: publicSupabaseUser(data.user),
+    };
+    setAuthToken(auth.token);
+    saveAccountSession(auth.user, auth.token);
+    return auth;
+  }
+
   let data;
   try {
     data = await request('/auth/signup', {
@@ -261,6 +372,24 @@ export async function signup(email, password, confirmPassword) {
 }
 
 export async function login(email, password) {
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: String(email || '').trim().toLowerCase(),
+      password,
+    });
+
+    if (error) throw new Error(error.message);
+    if (!data.session || !data.user) throw new Error('Could not start a Supabase session.');
+
+    const auth = {
+      token: data.session.access_token,
+      user: publicSupabaseUser(data.user),
+    };
+    setAuthToken(auth.token);
+    saveAccountSession(auth.user, auth.token);
+    return auth;
+  }
+
   let data;
   try {
     data = await request('/auth/login', {
@@ -284,6 +413,9 @@ export async function resetLocalPassword(email, password) {
 }
 
 export async function getCurrentUser() {
+  const supabaseUser = await getSupabaseUser();
+  if (supabaseUser) return publicSupabaseUser(supabaseUser);
+
   const localUser = getLocalUserFromToken();
   if (localUser) return publicLocalUser(localUser);
 
@@ -298,6 +430,9 @@ export async function getCurrentUser() {
 
 export async function logout() {
   const token = getAuthToken();
+  if (isSupabaseConfigured) {
+    await supabase.auth.signOut().catch(() => {});
+  }
   await request('/auth/logout', { method: 'POST' }).catch(() => {});
   if (token?.startsWith('local:')) {
     const sessions = readLocalJson(LOCAL_SESSIONS_KEY, []);
@@ -320,6 +455,7 @@ export async function logoutToken(token) {
 }
 
 export async function loadUserData() {
+  if (isSupabaseConfigured && (await getSupabaseUser())) return loadSupabaseUserData();
   if (getAuthToken()?.startsWith('local:')) return loadLocalUserData();
   try {
     return await request('/data');
@@ -330,6 +466,7 @@ export async function loadUserData() {
 }
 
 export async function saveUserData(data) {
+  if (isSupabaseConfigured && (await getSupabaseUser())) return saveSupabaseUserData(data);
   if (getAuthToken()?.startsWith('local:')) return saveLocalUserData(data);
   try {
     return await request('/data', {

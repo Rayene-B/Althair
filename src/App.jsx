@@ -35,14 +35,10 @@ export default function App() {
 
   useEffect(() => {
     async function restoreSession() {
-      if (!getAuthToken()) {
-        setAuthChecked(true);
-        return;
-      }
-
       try {
         const currentUser = await getCurrentUser();
-        setAccounts(saveAccountSession(currentUser, getAuthToken()));
+        const token = getAuthToken();
+        if (token) setAccounts(saveAccountSession(currentUser, token));
         setUser(currentUser);
       } catch {
         clearAuthToken();
