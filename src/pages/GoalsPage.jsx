@@ -13,6 +13,15 @@ const emptyGoal = {
   description: '',
 };
 
+const goalGradients = [
+  'from-cyan-300 via-blue-300 to-violet-300',
+  'from-emerald-300 via-teal-300 to-cyan-300',
+  'from-fuchsia-300 via-rose-300 to-amber-300',
+  'from-lime-300 via-emerald-300 to-sky-300',
+  'from-indigo-300 via-purple-300 to-pink-300',
+  'from-amber-300 via-orange-300 to-red-300',
+];
+
 function monthsUntil(deadline) {
   const now = new Date();
   const end = new Date(`${deadline}T12:00:00`);
@@ -25,6 +34,64 @@ function progressForGoal(goal) {
   const now = Date.now();
   if (end <= start) return 100;
   return Math.min(100, Math.max(0, Math.round(((now - start) / (end - start)) * 100)));
+}
+
+function daysToDeadline(deadline) {
+  const today = new Date(`${todayIso()}T00:00:00`).getTime();
+  const end = new Date(`${deadline}T00:00:00`).getTime();
+  return Math.ceil((end - today) / 86400000);
+}
+
+function GoalTimeline({ goals }) {
+  const sortedGoals = [...goals].sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+  return (
+    <Card title="Deadline timeline" className="surface-card">
+      {sortedGoals.length ? (
+        <div className="space-y-5">
+          {sortedGoals.map((goal, index) => {
+            const progress = progressForGoal(goal);
+            const daysLeft = daysToDeadline(goal.deadline);
+            const gradient = goalGradients[index % goalGradients.length];
+
+            return (
+              <div key={goal.id} className="rounded-[8px] border border-white/8 bg-slate-950/36 p-4">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-white">{goal.title}</h3>
+                    <p className="mt-1 text-xs text-white/52">Due {formatDate(goal.deadline)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-white">{progress}%</p>
+                    <p className="text-xs text-cyan-100/62">
+                      {daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative h-5 overflow-hidden rounded-full border border-white/10 bg-slate-950/72 shadow-inner">
+                  <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[length:8.333%_100%] opacity-35" />
+                  <div
+                    className={`relative h-full rounded-full bg-gradient-to-r ${gradient} shadow-[0_0_24px_rgba(125,211,252,0.26)] transition-all duration-500`}
+                    style={{ width: `${progress}%` }}
+                  />
+                  <div
+                    className="absolute top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40 bg-white/90 shadow-[0_0_24px_rgba(255,255,255,0.24)]"
+                    style={{ left: `${progress}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="rounded-[8px] border border-white/8 bg-slate-950/34 p-5 text-sm text-white/58">
+          Create a goal to see its time-to-deadline progress here.
+        </p>
+      )}
+    </Card>
+  );
 }
 
 function GoalCard({ goal, onEdit, onAddUpdate, onUpdateUpdate }) {
@@ -259,6 +326,8 @@ export default function GoalsPage({ goals, addGoal, updateGoal, addGoalUpdate, u
           />
         </div>
       </div>
+
+      <GoalTimeline goals={goals} />
     </div>
   );
 }
