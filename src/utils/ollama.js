@@ -1,5 +1,6 @@
 import { formatDate, urgencyLabel } from './dates';
 
+const DEPLOYED_AI_URL = '/api/ai';
 const OLLAMA_CHAT_URL = '/ollama/api/chat';
 
 function compactEvents(events) {
@@ -55,9 +56,9 @@ export function buildLifeOsContext({ events, tasks, goals, categories, completio
 }
 
 export function buildSystemPrompt(context) {
-  return `You are Althair, Rayene's local personal organisation assistant.
-You run locally through Ollama and should help with planning, deadlines, schedules, priorities, and productivity.
-Use the app context below as the source of truth. If the user asks about tasks, events, deadlines, completion, or schedule planning, use this data directly.
+  return `You are Althair, Rayene's personal organisation assistant.
+Help with planning, deadlines, schedules, priorities, goals, and productivity.
+Use the app context below as the source of truth. If the user asks about tasks, events, deadlines, completion, goals, or schedule planning, use this data directly.
 Be concise, practical, and specific. Do not claim you changed app data unless the user explicitly does it in the UI.
 
 Althair context:
@@ -75,12 +76,12 @@ function deployedFallbackResponse(messages, context) {
   const openTasks = (context.tasks || []).filter((task) => !task.completed);
   const completedTasks = (context.tasks || []).filter((task) => task.completed).length;
   const goals = context.goals || [];
-  const wantsUpdate = /update|upcoming|task|date|deadline|schedule|today|week|priority|prioritise|prioritize/.test(latestMessage);
+  const wantsUpdate = /update|upcoming|task|date|deadline|schedule|today|week|priority|prioritise|prioritize|goal/.test(latestMessage);
 
   if (!wantsUpdate) {
-    return `I cannot reach your local Gemma/Ollama model from this deployed Vercel site, because Ollama only runs on your computer.
+    return `I cannot reach Gemma/Ollama from this deployed Vercel site yet.
 
-I can still use your saved Althair data for quick planning summaries here. Ask for an update on tasks, dates, deadlines, goals, or your schedule.`;
+To make it run here, expose Ollama with a private tunnel and set OLLAMA_BASE_URL in Vercel. I can still use your saved Althair data for quick planning summaries here.`;
   }
 
   return `Quick update for ${context.user}:
@@ -88,65 +89,77 @@ I can still use your saved Althair data for quick planning summaries here. Ask f
 Important dates:
 ${listItems(
   upcomingDates,
-  (event) => `- ${event.name} — ${event.date}${event.time ? ` at ${event.time}` : ''} (${event.urgency})`,
+  (event) => `- ${event.name} - ${event.date}${event.time ? ` at ${event.time}` : ''} (${event.urgency})`,
   'No important dates saved yet.',
 )}
 
 Open tasks:
 ${listItems(
   openTasks,
-  (task) => `- ${task.name} — ${task.date ? `${task.date}, ` : ''}${task.time || 'Any time'} / ${task.frequency}`,
+  (task) => `- ${task.name} - ${task.date ? `${task.date}, ` : ''}${task.time || 'Any time'} / ${task.frequency}`,
   'No open tasks saved yet.',
 )}
 
 Goals:
 ${listItems(
   goals,
-  (goal) => `- ${goal.title} — due ${goal.deadline}`,
+  (goal) => `- ${goal.title} - due ${goal.deadline}`,
   'No goals saved yet.',
 )}
 
 Completion: ${context.completionPercentage}% (${completedTasks} completed task${completedTasks === 1 ? '' : 's'}).
 
-For full Gemma responses, run Althair locally with Ollama running. On Vercel, this fallback can summarize your saved planner data but cannot call your computer's local model.`;
+For full Gemma responses on Vercel, set OLLAMA_BASE_URL to a secure public tunnel for your Ollama server.`;
 }
 
-function shouldUseDeployedFallback(errorOrStatus) {
+function shouldTryFallback(errorOrStatus) {
   const status = typeof errorOrStatus === 'number' ? errorOrStatus : errorOrStatus?.status;
-  return status === 404 || status === 405 || errorOrStatus instanceof TypeError;
+  return status === 404 || status === 405 || status === 503 || errorOrStatus instanceof TypeError;
 }
 
-export async function askOllama({ model, messages, context }) {
-  let response;
-  try {
-    response = await fetch(OLLAMA_CHAT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        messages: [
-          {
-            role: 'system',
-            content: buildSystemPrompt(context),
-          },
-          ...messages,
-        ],
-      }),
-    });
-  } catch (error) {
-    if (shouldUseDeployedFallback(error)) return deployedFallbackResponse(messages, context);
-    throw error;
-  }
+async function requestChat(url, { model, messages, context }) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      context,
+      messages: [
+        {
+          role: 'system',
+          content: buildSystemPrompt(context),
+        },
+        ...messages,
+      ],
+    }),
+  });
 
   if (!response.ok) {
     const detail = await response.text();
-    if (shouldUseDeployedFallback(response.status)) return deployedFallbackResponse(messages, context);
-    throw new Error(detail || `Ollama request failed with ${response.status}`);
+    const error = new Error(detail || `Ollama request failed with ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 
-  const data = await response.json();
-  return data.message?.content?.trim() || 'I could not generate a response.';
+  return response.json();
+}
+
+export async function askOllama({ model, messages, context }) {
+  try {
+    const data = await requestChat(DEPLOYED_AI_URL, { model, messages, context });
+    return data.message?.content?.trim() || data.content?.trim() || 'I could not generate a response.';
+  } catch (error) {
+    if (!shouldTryFallback(error)) throw error;
+  }
+
+  try {
+    const data = await requestChat(OLLAMA_CHAT_URL, { model, messages, context });
+    return data.message?.content?.trim() || data.content?.trim() || 'I could not generate a response.';
+  } catch (error) {
+    if (shouldTryFallback(error)) return deployedFallbackResponse(messages, context);
+    throw error;
+  }
 }

@@ -36,3 +36,20 @@ The app runs at `http://127.0.0.1:5173`.
 ## Local Data
 
 User accounts and app data are stored locally in `server/data/`. That folder is ignored by Git so private local data is not uploaded.
+
+## Gemma/Ollama on Vercel
+
+The deployed Vercel app cannot call `localhost` on your computer. To use your local Gemma model from the deployed site, expose Ollama through a secure tunnel and add this Vercel environment variable:
+
+```text
+OLLAMA_BASE_URL=https://your-tunnel-url
+```
+
+Optional:
+
+```text
+OLLAMA_MODEL=gemma3:latest
+OLLAMA_API_KEY=your-tunnel-auth-token
+```
+
+Without `OLLAMA_BASE_URL`, the app uses a built-in planning summary fallback.
