@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@property --orbit-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(98, 215, 255, 0.16), transparent 27rem),
+    radial-gradient(circle at 88% 14%, rgba(118, 76, 255, 0.18), transparent 31rem),
+    linear-gradient(135deg, #07051a 0%, #0b0822 42%, #120d36 100%);
+  color: #f8f7ff;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.page-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0.72;
+  transition: background-image 220ms ease, opacity 220ms ease;
+}
+
+.page-background-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(98, 215, 255, 0.13), transparent 30rem),
+    linear-gradient(90deg, rgba(7, 5, 26, 0.58), rgba(7, 5, 26, 0.22) 46%, rgba(7, 5, 26, 0.52)),
+    linear-gradient(180deg, rgba(7, 5, 26, 0.45), rgba(7, 5, 26, 0.78));
+  pointer-events: none;
+}
+
+.dashboard-hero {
+  border-color: rgba(125, 211, 252, 0.16);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.84), rgba(21, 17, 60, 0.66)),
+    radial-gradient(circle at 86% 12%, rgba(251, 191, 36, 0.13), transparent 18rem),
+    radial-gradient(circle at 58% 0%, rgba(52, 211, 153, 0.11), transparent 19rem);
+}
+
+.surface-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.74), rgba(33, 27, 80, 0.54)),
+    radial-gradient(circle at 12% 0%, rgba(98, 215, 255, 0.08), transparent 16rem);
+}
+
+.search-dock {
+  border-color: rgba(125, 211, 252, 0.14);
+  background:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.78), rgba(49, 46, 129, 0.42), rgba(15, 23, 42, 0.78));
+}
+
+.orbit-hover {
+  overflow: hidden;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.orbit-hover::before {
+  position: absolute;
+  inset: -2px;
+  z-index: 0;
+  padding: 2px;
+  border-radius: 10px;
+  background: conic-gradient(
+    from var(--orbit-angle, 0deg),
+    rgba(98, 215, 255, 0),
+    rgba(98, 215, 255, 0.8),
+    rgba(167, 139, 250, 0.75),
+    rgba(98, 215, 255, 0)
+  );
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.orbit-hover:hover,
+.orbit-hover:focus-visible {
+  border-color: rgba(98, 215, 255, 0.34);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28), 0 0 28px rgba(98, 215, 255, 0.16);
+  transform: translateY(-2px);
+}
+
+.orbit-hover:hover::before,
+.orbit-hover:focus-visible::before {
+  animation: orbit-spin 1.6s linear infinite;
+  opacity: 1;
+}
+
+@keyframes orbit-spin {
+  to {
+    --orbit-angle: 360deg;
+  }
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(98, 215, 255, 0.28) rgba(255, 255, 255, 0.05);
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(98, 215, 255, 0.28);
+  border-radius: 999px;
+}
