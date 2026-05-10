@@ -152,9 +152,39 @@ async function localLogin(email, password) {
   const normalisedEmail = String(email || '').trim().toLowerCase();
   const users = readLocalJson(LOCAL_USERS_KEY, []);
   const user = users.find((item) => item.email === normalisedEmail);
-  if (!user || user.passwordHash !== (await hashLocalPassword(password || ''))) {
-    throw new Error('Email or password is incorrect.');
+  if (!user) {
+    throw new Error('No deployed account exists for this email on this browser. Create the account once on this deployed version.');
   }
+  if (user.passwordHash !== (await hashLocalPassword(password || ''))) {
+    throw new Error('Password is incorrect for this browser-local account.');
+  }
+
+  const token = createLocalSession(user.id);
+  return { token, user: publicLocalUser(user) };
+}
+
+async function localResetPassword(email, password) {
+  const normalisedEmail = String(email || '').trim().toLowerCase();
+  if (!normalisedEmail || !password || password.length < 8) {
+    throw new Error('Use a valid email and a password with at least 8 characters.');
+  }
+
+  const users = readLocalJson(LOCAL_USERS_KEY, []);
+  const user = users.find((item) => item.email === normalisedEmail);
+  if (!user) {
+    return localSignup(normalisedEmail, password, password);
+  }
+
+  const passwordHash = await hashLocalPassword(password);
+  const nextUsers = users.map((item) =>
+    item.id === user.id
+      ? {
+          ...item,
+          passwordHash,
+        }
+      : item,
+  );
+  writeLocalJson(LOCAL_USERS_KEY, nextUsers);
 
   const token = createLocalSession(user.id);
   return { token, user: publicLocalUser(user) };
@@ -241,6 +271,13 @@ export async function login(email, password) {
     if (!shouldUseLocalFallback(error)) throw error;
     data = await localLogin(email, password);
   }
+  setAuthToken(data.token);
+  saveAccountSession(data.user, data.token);
+  return data;
+}
+
+export async function resetLocalPassword(email, password) {
+  const data = await localResetPassword(email, password);
   setAuthToken(data.token);
   saveAccountSession(data.user, data.token);
   return data;

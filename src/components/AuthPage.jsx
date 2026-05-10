@@ -3,7 +3,7 @@ import { Lock, Mail, Sparkles } from 'lucide-react';
 import Button from './Button';
 import Card from './Card';
 import TextInput from './TextInput';
-import { login, signup } from '../utils/api';
+import { login, resetLocalPassword, signup } from '../utils/api';
 import backgroundMain from '../../BackgroundMain.png';
 
 export default function AuthPage({ onAuthenticated }) {
@@ -30,6 +30,25 @@ export default function AuthPage({ onAuthenticated }) {
       setIsLoading(false);
     }
   }
+
+  async function resetDeployedAccount() {
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const auth = await resetLocalPassword(email, password);
+      onAuthenticated(auth);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const canRepairLocalAccount =
+    mode === 'login' &&
+    error &&
+    (error.startsWith('No deployed account') || error.startsWith('Password is incorrect'));
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-void">
@@ -70,6 +89,18 @@ export default function AuthPage({ onAuthenticated }) {
             )}
 
             {error && <p className="rounded-[8px] border border-amber-300/18 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">{error}</p>}
+
+            {canRepairLocalAccount && (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={isLoading || !email.trim() || password.length < 8}
+                onClick={resetDeployedAccount}
+                className="w-full disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Use this password on deployed account
+              </Button>
+            )}
 
             <Button type="submit" disabled={isLoading} className="w-full disabled:cursor-not-allowed disabled:opacity-50">
               {isLoading ? 'Please wait...' : mode === 'signup' ? 'Sign up' : 'Log in'}
