@@ -12,7 +12,7 @@ import TaskCard from '../components/TaskCard';
 import TextArea from '../components/TextArea';
 import TextInput from '../components/TextInput';
 import { categoryOptionsFrom } from '../utils/categories';
-import { formatDate } from '../utils/dates';
+import { daysUntil, formatDate } from '../utils/dates';
 
 function emptyCalendarEvent(date = '') {
   return {
@@ -24,13 +24,15 @@ function emptyCalendarEvent(date = '') {
   };
 }
 
-export default function CalendarPage({ events, tasks, addEvent, updateEvent, moveEvent, toggleTask, categories, addCategory, removeCategory }) {
+export default function CalendarPage({ events, tasks, addEvent, updateEvent, removeEvent, moveEvent, toggleTask, categories, addCategory, removeCategory }) {
   const [selectedDate, setSelectedDate] = useState('');
   const [dayDetailDate, setDayDetailDate] = useState('');
   const [editingEventId, setEditingEventId] = useState('');
   const [form, setForm] = useState(emptyCalendarEvent());
   const categoryOptions = categoryOptionsFrom(categories);
   const isEditing = Boolean(editingEventId);
+  const upcomingEvents = events.filter((event) => daysUntil(event.date) >= 0);
+  const passedEvents = events.filter((event) => daysUntil(event.date) < 0);
 
   function openCreateEvent(date) {
     setSelectedDate(date);
@@ -103,10 +105,40 @@ export default function CalendarPage({ events, tasks, addEvent, updateEvent, mov
       </Card>
 
       <SidebarPanel title="Important dates" className="surface-card min-h-[720px]">
-        <div className="thin-scrollbar max-h-[628px] space-y-3 overflow-auto pr-1">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} categories={categories} onEdit={openEditEvent} />
-          ))}
+        <div className="thin-scrollbar max-h-[628px] space-y-6 overflow-auto pr-1">
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Upcoming</h3>
+              <span className="rounded-full border border-cyan-200/14 bg-cyan-300/8 px-2.5 py-1 text-xs text-cyan-100/72">
+                {upcomingEvents.length}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {upcomingEvents.map((event) => (
+                <EventCard key={event.id} event={event} categories={categories} onEdit={openEditEvent} onDelete={removeEvent} />
+              ))}
+              {!upcomingEvents.length && (
+                <p className="rounded-[8px] border border-white/8 bg-slate-950/34 p-4 text-sm text-white/56">No upcoming events.</p>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-xs uppercase tracking-[0.18em] text-white/46">Passed</h3>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-white/52">
+                {passedEvents.length}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {passedEvents.map((event) => (
+                <EventCard key={event.id} event={event} categories={categories} onEdit={openEditEvent} onDelete={removeEvent} />
+              ))}
+              {!passedEvents.length && (
+                <p className="rounded-[8px] border border-white/8 bg-slate-950/34 p-4 text-sm text-white/56">No passed events yet.</p>
+              )}
+            </div>
+          </section>
         </div>
       </SidebarPanel>
       </div>
@@ -147,7 +179,13 @@ export default function CalendarPage({ events, tasks, addEvent, updateEvent, mov
                 </div>
                 <div className="space-y-3">
                   {events.filter((event) => event.date === dayDetailDate).map((event) => (
-                    <EventCard key={event.id} event={event} categories={categories} onEdit={(item) => { setDayDetailDate(''); openEditEvent(item); }} />
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      categories={categories}
+                      onEdit={(item) => { setDayDetailDate(''); openEditEvent(item); }}
+                      onDelete={removeEvent}
+                    />
                   ))}
                   {!events.some((event) => event.date === dayDetailDate) && (
                     <p className="rounded-[8px] border border-white/8 bg-white/[0.04] p-4 text-sm text-white/56">No events on this day.</p>

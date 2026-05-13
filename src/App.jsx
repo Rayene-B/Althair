@@ -95,6 +95,10 @@ export default function App() {
     setEvents((current) => current.map((event) => (event.id === updatedEvent.id ? updatedEvent : event)));
   }
 
+  function removeEvent(eventId) {
+    setEvents((current) => current.filter((event) => event.id !== eventId));
+  }
+
   function moveEvent(eventId, date) {
     setEvents((current) => current.map((event) => (event.id === eventId ? { ...event, date } : event)));
   }
@@ -262,6 +266,7 @@ export default function App() {
     completion,
     addEvent,
     updateEvent,
+    removeEvent,
     moveEvent,
     addCategory,
     removeCategory,

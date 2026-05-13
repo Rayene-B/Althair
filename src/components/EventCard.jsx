@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react';
+import { Pencil, X } from 'lucide-react';
 import { categoryColor } from '../utils/categories';
 import { formatDate, priorityForDate, urgencyLabel } from '../utils/dates';
 
@@ -8,7 +8,7 @@ const priorityStyles = {
   later: 'border-ion/30 bg-white/6 text-white/85',
 };
 
-export default function EventCard({ event, categories, onEdit }) {
+export default function EventCard({ event, categories, onEdit, onDelete }) {
   const priority = priorityForDate(event.date);
 
   return (
@@ -26,11 +26,28 @@ export default function EventCard({ event, categories, onEdit }) {
           {onEdit && (
             <button
               type="button"
-              onClick={() => onEdit(event)}
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                onEdit(event);
+              }}
               className="grid h-8 w-8 place-items-center rounded-[8px] border border-white/10 bg-black/18 text-white/58 transition hover:border-cyan-200/30 hover:text-cyan-100"
               aria-label={`Edit ${event.name}`}
             >
               <Pencil size={14} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                onDelete(event.id);
+              }}
+              className="grid h-8 w-8 place-items-center rounded-[8px] border border-white/10 bg-black/18 text-white/58 transition hover:border-red-300/35 hover:text-red-100"
+              aria-label={`Remove ${event.name}`}
+              title="Remove event"
+            >
+              <X size={15} />
             </button>
           )}
         </div>

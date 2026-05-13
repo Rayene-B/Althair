@@ -4,7 +4,7 @@ import Button from '../components/Button';
 import Card from '../components/Card';
 import EventCard from '../components/EventCard';
 import { categoryColor } from '../utils/categories';
-import { formatDate, isoFromDate, monthMatrix, urgencyLabel } from '../utils/dates';
+import { daysUntil, formatDate, isoFromDate, monthMatrix, urgencyLabel } from '../utils/dates';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -82,9 +82,10 @@ function FeaturedEvent({ event, categories }) {
   );
 }
 
-export default function Dashboard({ events, tasks, goals, categories, completion, onNavigate }) {
+export default function Dashboard({ events, tasks, goals, categories, completion, removeEvent, onNavigate }) {
   const completedTasks = tasks.filter((task) => task.completed).length;
   const nextTasks = tasks.slice(0, 3);
+  const upcomingEvents = events.filter((event) => daysUntil(event.date) >= 0);
 
   return (
     <div className="space-y-5">
@@ -95,7 +96,7 @@ export default function Dashboard({ events, tasks, goals, categories, completion
             <h1 className="mt-2 text-3xl font-semibold text-white">{greeting()}, Rayene!</h1>
           </div>
           <div className="flex flex-wrap gap-2 text-sm text-white/64">
-            <span className="rounded-full border border-cyan-300/14 bg-cyan-300/8 px-3 py-1">{events.length} dates</span>
+            <span className="rounded-full border border-cyan-300/14 bg-cyan-300/8 px-3 py-1">{upcomingEvents.length} dates</span>
             <span className="rounded-full border border-emerald-300/14 bg-emerald-300/8 px-3 py-1">{completedTasks}/{tasks.length} tasks</span>
             <span className="rounded-full border border-amber-300/14 bg-amber-300/8 px-3 py-1">{completion}% complete</span>
           </div>
@@ -123,9 +124,9 @@ export default function Dashboard({ events, tasks, goals, categories, completion
           onClick={() => onNavigate('calendar')}
         >
           <div className="thin-scrollbar max-h-[258px] space-y-3 overflow-auto pr-1">
-            {events.length ? (
-              events.map((event) => (
-                <EventCard key={event.id} event={event} categories={categories} />
+            {upcomingEvents.length ? (
+              upcomingEvents.map((event) => (
+                <EventCard key={event.id} event={event} categories={categories} onDelete={removeEvent} />
               ))
             ) : (
               <FeaturedEvent event={null} categories={categories} />
