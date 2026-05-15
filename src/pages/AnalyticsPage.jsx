@@ -6,6 +6,7 @@ import SidebarPanel from '../components/SidebarPanel';
 import { categoryOptionsFrom } from '../utils/categories';
 
 const filters = ['This Week', 'This Month', 'This Year', 'All Time'];
+const studyFilters = ['Past Week', 'Past Month', 'Past 6 Months', 'Overall'];
 
 function buildCurvePath(points) {
   if (points.length < 2) return '';
@@ -129,10 +130,164 @@ function ProgressLineChart({ bars, selectedCompletion }) {
   );
 }
 
-export default function AnalyticsPage({ tasks, completion, categories }) {
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatMonthLabel(date) {
+  return new Intl.DateTimeFormat('en-GB', { month: 'short', year: '2-digit' }).format(date);
+}
+
+function buildStudyBuckets(sessions, filter) {
+  const now = new Date();
+  const validSessions = sessions
+    .map((session) => ({
+      ...session,
+      date: new Date(session.completedAt || session.startedAt),
+      minutes: Number(session.studyMinutes) || 0,
+    }))
+    .filter((session) => Number.isFinite(session.date.getTime()) && session.minutes > 0);
+
+  if (filter === 'Past Week') {
+    const start = addDays(startOfDay(now), -6);
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = addDays(start, index);
+      const nextDay = addDays(day, 1);
+      const minutes = validSessions
+        .filter((session) => session.date >= day && session.date < nextDay)
+        .reduce((total, session) => total + session.minutes, 0);
+      return {
+        label: new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(day),
+        minutes,
+      };
+    });
+  }
+
+  if (filter === 'Past Month') {
+    const start = addDays(startOfDay(now), -27);
+    return Array.from({ length: 4 }, (_, index) => {
+      const weekStart = addDays(start, index * 7);
+      const weekEnd = addDays(weekStart, 7);
+      const minutes = validSessions
+        .filter((session) => session.date >= weekStart && session.date < weekEnd)
+        .reduce((total, session) => total + session.minutes, 0);
+      return { label: `Week ${index + 1}`, minutes };
+    });
+  }
+
+  if (filter === 'Past 6 Months') {
+    const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    return Array.from({ length: 6 }, (_, index) => {
+      const month = new Date(start.getFullYear(), start.getMonth() + index, 1);
+      const key = monthKey(month);
+      const minutes = validSessions
+        .filter((session) => monthKey(session.date) === key)
+        .reduce((total, session) => total + session.minutes, 0);
+      return { label: formatMonthLabel(month), minutes };
+    });
+  }
+
+  if (!validSessions.length) {
+    return [{ label: formatMonthLabel(now), minutes: 0 }];
+  }
+
+  const first = validSessions.reduce((earliest, session) => (session.date < earliest ? session.date : earliest), validSessions[0].date);
+  const buckets = [];
+  let cursor = new Date(first.getFullYear(), first.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  while (cursor <= end) {
+    const key = monthKey(cursor);
+    const minutes = validSessions
+      .filter((session) => monthKey(session.date) === key)
+      .reduce((total, session) => total + session.minutes, 0);
+    buckets.push({ label: formatMonthLabel(cursor), minutes });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  return buckets;
+}
+
+function StudyMinutesChart({ buckets }) {
+  const width = 960;
+  const height = 340;
+  const padding = 52;
+  const maxMinutes = Math.max(60, ...buckets.map((bucket) => bucket.minutes));
+  const points = buckets.map((bucket, index) => {
+    const x = padding + (index * (width - padding * 2)) / (buckets.length - 1 || 1);
+    const y = height - padding - (bucket.minutes / maxMinutes) * (height - padding * 2);
+    return { ...bucket, x, y };
+  });
+  const linePath = buildCurvePath(points);
+  const fillPath = points.length
+    ? `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`
+    : '';
+
+  return (
+    <div className="rounded-[8px] border border-emerald-300/16 bg-slate-950/38 p-5">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[320px] w-full overflow-visible">
+        <defs>
+          <linearGradient id="studyLineGradient" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#34d399" />
+            <stop offset="100%" stopColor="#62d7ff" />
+          </linearGradient>
+          <linearGradient id="studyAreaGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.24" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+          const y = height - padding - tick * (height - padding * 2);
+          return (
+            <g key={tick}>
+              <line x1={padding} x2={width - padding} y1={y} y2={y} stroke="rgba(255,255,255,0.08)" />
+              <text x={16} y={y + 5} fill="rgba(255,255,255,0.74)" fontSize="14" fontWeight="600">
+                {Math.round(maxMinutes * tick)}m
+              </text>
+            </g>
+          );
+        })}
+
+        {linePath && <path d={fillPath} fill="url(#studyAreaGradient)" />}
+        {linePath && <path d={linePath} fill="none" stroke="url(#studyLineGradient)" strokeLinecap="round" strokeWidth="5" />}
+
+        {points.map((point, index) => (
+          <g key={`${point.label}-${index}`}>
+            <circle cx={point.x} cy={point.y} r="7" fill="#07051a" stroke="#34d399" strokeWidth="3" />
+            <text x={point.x} y={point.y - 16} textAnchor="middle" fill="rgba(255,255,255,0.9)" fontSize="14" fontWeight="700">
+              {point.minutes}m
+            </text>
+            <text x={point.x} y={height - 15} textAnchor="middle" fill="rgba(255,255,255,0.74)" fontSize="13" fontWeight="600">
+              {point.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+export default function AnalyticsPage({ tasks, completion, categories, studyDeck }) {
   const [filter, setFilter] = useState('This Week');
+  const [studyFilter, setStudyFilter] = useState('Past Week');
   const [category, setCategory] = useState('All');
   const categoryOptions = categoryOptionsFrom(categories);
+  const studyBuckets = useMemo(
+    () => buildStudyBuckets(studyDeck?.sessions || [], studyFilter),
+    [studyDeck?.sessions, studyFilter],
+  );
+  const studyMinutes = studyBuckets.reduce((total, bucket) => total + bucket.minutes, 0);
 
   const filteredTasks = useMemo(() => {
     if (category === 'All') return tasks;
@@ -177,6 +332,20 @@ export default function AnalyticsPage({ tasks, completion, categories }) {
             ))}
           </div>
 
+          <div className="mt-10 space-y-3 rounded-[8px] border border-emerald-300/16 bg-slate-950/34 p-3">
+            <p className="px-1 text-xs uppercase tracking-[0.18em] text-emerald-100/62">Study minutes</p>
+            {studyFilters.map((option) => (
+              <Button
+                key={option}
+                variant={studyFilter === option ? 'active' : 'ghost'}
+                onClick={() => setStudyFilter(option)}
+                className="w-full"
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+
           <div className="mt-10 rounded-[8px] border border-cyan-200/12 bg-slate-950/34 p-4">
             <p className="mb-4 text-center text-sm text-white/70">All OR Categories Selected:</p>
             <SelectInput value={category} onChange={(event) => setCategory(event.target.value)}>
@@ -199,6 +368,17 @@ export default function AnalyticsPage({ tasks, completion, categories }) {
             </div>
 
             <div className="space-y-6">
+              <div className="rounded-[8px] border border-emerald-300/16 bg-emerald-300/[0.07] p-5">
+                <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/62">{studyFilter}</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-white">{studyMinutes} minutes studied</h3>
+                  </div>
+                  <p className="text-sm text-white/58">Breaks excluded</p>
+                </div>
+                <StudyMinutesChart buckets={studyBuckets} />
+              </div>
+
               <ProgressLineChart bars={bars} selectedCompletion={filteredCompletion} />
 
               <div className="grid gap-3 md:grid-cols-2">

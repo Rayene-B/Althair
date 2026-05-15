@@ -78,15 +78,32 @@ function createLocalSeedData() {
     events: [],
     tasks: [],
     goals: [],
+    studyDeck: {
+      settings: {
+        studyMinutes: 25,
+        breakMinutes: 5,
+      },
+      tasks: [],
+      sessions: [],
+    },
   };
 }
 
 function normaliseAppData(data = {}) {
+  const studyDeck = data.studyDeck && typeof data.studyDeck === 'object' ? data.studyDeck : {};
   return {
     events: Array.isArray(data.events) ? data.events : [],
     tasks: Array.isArray(data.tasks) ? data.tasks : [],
     goals: Array.isArray(data.goals) ? data.goals : [],
     categories: data.categories && typeof data.categories === 'object' ? data.categories : defaultCategories,
+    studyDeck: {
+      settings: {
+        studyMinutes: Number(studyDeck.settings?.studyMinutes) || 25,
+        breakMinutes: Number(studyDeck.settings?.breakMinutes) || 5,
+      },
+      tasks: Array.isArray(studyDeck.tasks) ? studyDeck.tasks : [],
+      sessions: Array.isArray(studyDeck.sessions) ? studyDeck.sessions : [],
+    },
   };
 }
 
@@ -291,6 +308,7 @@ function saveLocalUserData(data) {
     tasks: Array.isArray(data.tasks) ? data.tasks : [],
     goals: Array.isArray(data.goals) ? data.goals : [],
     categories: data.categories && typeof data.categories === 'object' ? data.categories : defaultCategories,
+    studyDeck: normaliseAppData(data).studyDeck,
   };
   writeLocalJson(LOCAL_DATA_KEY, {
     ...allData,

@@ -29,6 +29,25 @@ function seedData() {
     events: [],
     tasks: [],
     goals: [],
+    studyDeck: {
+      settings: {
+        studyMinutes: 25,
+        breakMinutes: 5,
+      },
+      tasks: [],
+      sessions: [],
+    },
+  };
+}
+
+function normaliseStudyDeck(studyDeck = {}) {
+  return {
+    settings: {
+      studyMinutes: Number(studyDeck.settings?.studyMinutes) || 25,
+      breakMinutes: Number(studyDeck.settings?.breakMinutes) || 5,
+    },
+    tasks: Array.isArray(studyDeck.tasks) ? studyDeck.tasks : [],
+    sessions: Array.isArray(studyDeck.sessions) ? studyDeck.sessions : [],
   };
 }
 
@@ -198,6 +217,7 @@ async function route(req, res) {
         tasks: Array.isArray(body.tasks) ? body.tasks : [],
         goals: Array.isArray(body.goals) ? body.goals : [],
         categories: body.categories && typeof body.categories === 'object' ? body.categories : defaultCategories,
+        studyDeck: normaliseStudyDeck(body.studyDeck),
       };
       writeDb(db);
       return json(res, 200, db.userData[user.id]);

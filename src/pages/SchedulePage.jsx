@@ -16,7 +16,7 @@ const emptyTask = {
   frequency: 'Daily',
 };
 
-export default function SchedulePage({ tasks, addTask, toggleTask, completion, onNavigate, categories }) {
+export default function SchedulePage({ tasks, addTask, toggleTask, updateTask, completion, onNavigate, categories }) {
   const [form, setForm] = useState(emptyTask);
   const [view, setView] = useState('Weekly');
   const categoryOptions = categoryOptionsFrom(categories);
@@ -100,7 +100,14 @@ export default function SchedulePage({ tasks, addTask, toggleTask, completion, o
         </div>
         <div className="thin-scrollbar max-h-[570px] space-y-3 overflow-auto rounded-[8px] border border-white/8 bg-slate-950/34 p-3 pr-2">
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onToggle={toggleTask} categories={categories} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              onToggle={toggleTask}
+              onUpdate={updateTask}
+              categories={categories}
+              categoryOptions={categoryOptions}
+            />
           ))}
         </div>
       </Card>

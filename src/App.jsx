@@ -7,6 +7,7 @@ import CalendarPage from './pages/CalendarPage';
 import GoalsPage from './pages/GoalsPage';
 import SchedulePage from './pages/SchedulePage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import StudyDeckPage from './pages/StudyDeckPage';
 import { categories as defaultCategories } from './utils/categories';
 import {
   clearAuthToken,
@@ -29,6 +30,11 @@ export default function App() {
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [goals, setGoals] = useState([]);
+  const [studyDeck, setStudyDeck] = useState({
+    settings: { studyMinutes: 25, breakMinutes: 5 },
+    tasks: [],
+    sessions: [],
+  });
   const [categories, setCategories] = useState(defaultCategories);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [accounts, setAccounts] = useState(() => getSavedAccounts());
@@ -57,6 +63,13 @@ export default function App() {
       setEvents(data.events || []);
       setTasks((data.tasks || []).filter((task) => !task.linkedEventId));
       setGoals(data.goals || []);
+      setStudyDeck(
+        data.studyDeck || {
+          settings: { studyMinutes: 25, breakMinutes: 5 },
+          tasks: [],
+          sessions: [],
+        },
+      );
       setCategories(data.categories || defaultCategories);
       setDataLoaded(true);
     }
@@ -67,13 +80,13 @@ export default function App() {
   useEffect(() => {
     if (!user || !dataLoaded) return;
     const timeout = setTimeout(() => {
-      saveUserData({ events, tasks, goals, categories }).catch((error) => {
+      saveUserData({ events, tasks, goals, categories, studyDeck }).catch((error) => {
         console.error(error);
       });
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [categories, dataLoaded, events, goals, tasks, user]);
+  }, [categories, dataLoaded, events, goals, studyDeck, tasks, user]);
 
   // Shared derived state keeps all pages consistent without a routing library.
   const sortedEvents = useMemo(
@@ -127,6 +140,12 @@ export default function App() {
   function toggleTask(id) {
     setTasks((current) =>
       current.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task)),
+    );
+  }
+
+  function updateTask(updatedTask) {
+    setTasks((current) =>
+      current.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask, name: updatedTask.name.trim() } : task)),
     );
   }
 
@@ -190,6 +209,11 @@ export default function App() {
     setEvents([]);
     setTasks([]);
     setGoals([]);
+    setStudyDeck({
+      settings: { studyMinutes: 25, breakMinutes: 5 },
+      tasks: [],
+      sessions: [],
+    });
     setCategories(defaultCategories);
     setPage('dashboard');
   }
@@ -272,10 +296,13 @@ export default function App() {
     removeCategory,
     addTask,
     toggleTask,
+    updateTask,
     addGoal,
     updateGoal,
     addGoalUpdate,
     updateGoalUpdate,
+    studyDeck,
+    setStudyDeck,
     onNavigate: setPage,
   };
 
@@ -285,6 +312,7 @@ export default function App() {
     dates: <CalendarPage {...pageProps} />,
     goals: <GoalsPage {...pageProps} />,
     schedule: <SchedulePage {...pageProps} />,
+    study: <StudyDeckPage {...pageProps} />,
     analytics: <AnalyticsPage {...pageProps} />,
   };
 

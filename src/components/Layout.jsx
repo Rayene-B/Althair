@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, Clock3, Home, Target } from 'lucide-react';
+import { BarChart3, BookOpenCheck, CalendarDays, Clock3, Home, Target } from 'lucide-react';
 import backgroundMain from '../../BackgroundMain.png';
 import bgBlackhole from '../../BGBlackhole.png';
 import bgMilkyway from '../../BGMilkyway.png';
@@ -9,6 +9,7 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'calendar', label: 'Calendar & Dates', icon: CalendarDays },
   { id: 'schedule', label: 'Schedule', icon: Clock3 },
+  { id: 'study', label: 'Study Deck', icon: BookOpenCheck },
   { id: 'goals', label: 'Goals', icon: Target },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
 ];
@@ -18,6 +19,7 @@ const pageBackgrounds = {
   calendar: bgBlackhole,
   dates: bgBlackhole,
   schedule: bgMilkyway,
+  study: bgMilkyway,
   goals: bgExotic,
   analytics: bgSun,
 };
