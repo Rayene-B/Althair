@@ -114,7 +114,7 @@ For full Gemma responses on Vercel, set OLLAMA_BASE_URL to a secure public tunne
 
 function shouldTryFallback(errorOrStatus) {
   const status = typeof errorOrStatus === 'number' ? errorOrStatus : errorOrStatus?.status;
-  return status === 404 || status === 405 || status === 503 || errorOrStatus instanceof TypeError;
+  return status === 404 || status === 405 || status === 502 || status === 503 || errorOrStatus instanceof TypeError;
 }
 
 async function requestChat(url, { model, messages, context }) {
