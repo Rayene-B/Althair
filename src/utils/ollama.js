@@ -94,6 +94,8 @@ Data boundaries:
 - Upcoming means daysLeft >= 0. Exclude overdue items unless the user asks for overdue items.
 - Urgent means upcoming importantDates with daysLeft from 0 to 3 inclusive.
 - Include all matching importantDates in the context. Do not silently leave matching dates out.
+- If importantDates contains no overdue records, do not mention overdue records from memory or previous turns.
+- Ignore prior assistant answers if they conflict with the current filtered context.
 
 Be concise, practical, and specific. Do not claim you changed app data unless the user explicitly does it in the UI.
 
@@ -106,12 +108,50 @@ function listItems(items, formatter, emptyText) {
   return items.slice(0, 6).map(formatter).join('\n');
 }
 
-function deployedFallbackResponse(messages, context) {
+function classifyIntent(messages) {
   const latestMessage = messages.at(-1)?.content?.toLowerCase() || '';
   const asksForTasks = /task|schedule|timetable|routine|chores?/.test(latestMessage);
   const asksForOverdue = /overdue|late|missed/.test(latestMessage);
-  const asksForUrgentDates = /urgent|soon|priority|prioritise|prioritize/.test(latestMessage) && /date|deadline|event|upcoming/.test(latestMessage);
-  const asksForDates = /date|deadline|event|upcoming/.test(latestMessage);
+  const asksForDates = /date|deadline|event|upcoming|submission|exam|meeting|seminar|interview/.test(latestMessage);
+  const asksForUrgentDates =
+    /urgent|soon|priority|prioritise|prioritize/.test(latestMessage) && asksForDates;
+
+  return {
+    asksForDates,
+    asksForOverdue,
+    asksForTasks,
+    asksForUrgentDates,
+  };
+}
+
+function scopedContextForPrompt(context, messages) {
+  const intent = classifyIntent(messages);
+  if (!intent.asksForDates || intent.asksForTasks) return context;
+
+  const datePool = intent.asksForUrgentDates
+    ? context.urgentUpcomingImportantDates || []
+    : context.upcomingImportantDates || [];
+  const importantDates = intent.asksForOverdue
+    ? [...(context.overdueImportantDates || []), ...datePool]
+    : datePool;
+
+  return {
+    ...context,
+    importantDates,
+    urgentUpcomingImportantDates: importantDates.filter((event) => event.daysLeft >= 0 && event.daysLeft <= 3),
+    upcomingImportantDates: importantDates.filter((event) => event.daysLeft >= 0),
+    overdueImportantDates: intent.asksForOverdue ? context.overdueImportantDates || [] : [],
+    scheduleTasks: [],
+    contextRules: {
+      ...(context.contextRules || {}),
+      activeScope:
+        'The user asked about dates/deadlines only. This request context has been filtered before reaching the model: overdue dates and schedule tasks are absent unless explicitly requested.',
+    },
+  };
+}
+
+function deployedFallbackResponse(messages, context) {
+  const { asksForDates, asksForOverdue, asksForTasks, asksForUrgentDates } = classifyIntent(messages);
   const importantDates = asksForUrgentDates
     ? [...(context.urgentUpcomingImportantDates || [])]
     : [...(context.upcomingImportantDates || [])];
@@ -206,18 +246,20 @@ async function requestChat(url, { model, messages, context }) {
 }
 
 export async function askOllama({ model, messages, context }) {
+  const requestContext = scopedContextForPrompt(context, messages);
+
   try {
-    const data = await requestChat(DEPLOYED_AI_URL, { model, messages, context });
+    const data = await requestChat(DEPLOYED_AI_URL, { model, messages, context: requestContext });
     return data.message?.content?.trim() || data.content?.trim() || 'I could not generate a response.';
   } catch (error) {
     if (!shouldTryFallback(error)) throw error;
   }
 
   try {
-    const data = await requestChat(OLLAMA_CHAT_URL, { model, messages, context });
+    const data = await requestChat(OLLAMA_CHAT_URL, { model, messages, context: requestContext });
     return data.message?.content?.trim() || data.content?.trim() || 'I could not generate a response.';
   } catch (error) {
-    if (shouldTryFallback(error)) return deployedFallbackResponse(messages, context);
+    if (shouldTryFallback(error)) return deployedFallbackResponse(messages, requestContext);
     throw error;
   }
 }
